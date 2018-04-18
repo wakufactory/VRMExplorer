@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<meta name="viewport" content="width=device-width">
+<title>VRM Explorer</title>
+<script type="text/javascript" src=""></script>
+<script type="text/javascript">
+function $(e) {return document.getElementById(e)}
+document.addEventListener("DOMContentLoaded",function() {
+	$('f').addEventListener("change", (ev)=>{
+			console.log((ev.target.files))
+			const reader = new FileReader();
+			reader.onload = (ev) =>{
+				if(VRM.parse(reader.result)) {
+					VRM.getimg()
+				}
+			}
+			reader.readAsArrayBuffer(ev.target.files[0]);
+	})
+})
+const VRM = {} 
+VRM.parse = (abuf)=>{
+	function u4(ofs) {return buf[ofs]+256*(buf[ofs+1]+256*(buf[ofs+2]+256*buf[ofs+3])) }
+	const buf = new Uint8Array(abuf)
+	if(buf[0]!=0x67||buf[1]!=0x6c||buf[2]!=0x54||buf[3]!=0x46||buf[4]!=2) return null
+	VRM.bsize = u4(8)
+	console.log(VRM.bsize)  
+	let ofs = 12
+	const chunk = [] ;
+	while(ofs<VRM.bsize) {
+		const csize = u4(ofs)
+		let ctype = u4(ofs+4)
+		if(ctype==1313821514) ctype="JSON"
+		if(ctype==5130562) ctype="BIN"
+		if(ctype=="JSON") {
+			let js =Array.from(buf.slice(ofs+8,csize+ofs+8), e => String.fromCharCode(e)).join("")
+			VRM.json = JSON.parse(js)
+			chunk.push({type:ctype,ofs:ofs,size:csize,data:VRM.json})
+			$("json").value = JSON.stringify(VRM.json,null,"    ")
+		}
+		if(ctype=="BIN") {
+			VRM.bin = buf.slice(ofs+8,csize+ofs+8)
+			chunk.push({type:ctype,ofs:ofs,size:csize,data:VRM.bin})	
+		}
+		ofs += 8+csize 
+	}
+	VRM.chunk = chunk 
+	console.log(chunk)
+	return chunk 
+}
+VRM.getimg = () => {
+	for(let im of VRM.json.images) {
+		const buf = VRM.json.bufferViews[im.bufferView] 
+		const data = VRM.bin.slice(buf.byteOffset,buf.byteOffset+buf.byteLength)
+		const uri = "data:"+im.mimeType+";base64,"+btoa(Array.from(data,e=>String.fromCharCode(e)).join(""))
+//		console.log(uri)
+		const img = document.createElement("img");
+		img.src= uri
+		$('imgs').appendChild(img)
+	}
+}
+</script>
+<link rel="stylesheet" type="text/css" href="">
+<style type="text/css">
+div.cont {
+	display:flex ;
+}
+div.json {
+	width:50vw ;
+}
+div.json textarea {
+	width:50vw ;
+	height:90vh ;
+	font-size:1rem ;
+}
+#imgs img {
+	width:200px ;
+}
+</style>
+</head>
+<body>
+<input id=f type=file accept=".vrm">
+<div class=cont>
+<div class=json>
+<textarea id=json></textarea>
+</div>
+<div class=img>
+<div id=imgs></div>
+</div>
+</div>
+</body>
+</html>
