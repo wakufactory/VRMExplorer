@@ -9,11 +9,17 @@
 function $(e) {return document.getElementById(e)}
 document.addEventListener("DOMContentLoaded",function() {
 	$('f').addEventListener("change", (ev)=>{
-			console.log((ev.target.files))
 			const reader = new FileReader();
 			reader.onload = (ev) =>{
 				if(VRM.parse(reader.result)) {
-					VRM.getimg()
+					$('imgs').innerHTML = "" ;
+					$("json").value = JSON.stringify(VRM.json,null,"    ")
+					const imgs = VRM.getimg()
+					for(let im of imgs) {
+						const img = document.createElement("img");
+						img.src= im
+						$('imgs').appendChild(img)
+					}
 				}
 			}
 			reader.readAsArrayBuffer(ev.target.files[0]);
@@ -37,7 +43,6 @@ VRM.parse = (abuf)=>{
 			let js =Array.from(buf.slice(ofs+8,csize+ofs+8), e => String.fromCharCode(e)).join("")
 			VRM.json = JSON.parse(js)
 			chunk.push({type:ctype,ofs:ofs,size:csize,data:VRM.json})
-			$("json").value = JSON.stringify(VRM.json,null,"    ")
 		}
 		if(ctype=="BIN") {
 			VRM.bin = buf.slice(ofs+8,csize+ofs+8)
@@ -50,15 +55,14 @@ VRM.parse = (abuf)=>{
 	return chunk 
 }
 VRM.getimg = () => {
+	const imgs = [] 
 	for(let im of VRM.json.images) {
 		const buf = VRM.json.bufferViews[im.bufferView] 
 		const data = VRM.bin.slice(buf.byteOffset,buf.byteOffset+buf.byteLength)
 		const uri = "data:"+im.mimeType+";base64,"+btoa(Array.from(data,e=>String.fromCharCode(e)).join(""))
-//		console.log(uri)
-		const img = document.createElement("img");
-		img.src= uri
-		$('imgs').appendChild(img)
+		imgs.push(uri)
 	}
+	return imgs 
 }
 </script>
 <link rel="stylesheet" type="text/css" href="">
@@ -80,7 +84,7 @@ div.json textarea {
 </style>
 </head>
 <body>
-<input id=f type=file accept=".vrm">
+<input id=f type=file accept=".vrm,.glb">
 <div class=cont>
 <div class=json>
 <textarea id=json></textarea>
