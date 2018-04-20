@@ -8,47 +8,87 @@
 <script type="text/javascript">
 "use strict" ;
 function $(e) {return document.getElementById(e)}
+function $c(elem,attr) {
+	const e = document.createElement(elem) 
+	for(let a in attr) {
+		e[a] = attr[a] 
+	}
+	return e
+}
 document.addEventListener("DOMContentLoaded",function() {
-	$('f').addEventListener("change", (ev)=>{
-			const reader = new FileReader();
-			reader.onload = (ev) =>{
-				const vrm = new VRM() 
-				if(vrm.parse(reader.result)) {
-					$('imgs').innerHTML = "" ;
-					for(let j in vrm.meta) {
-						const t = document.createElement("h2")
-						t.innerHTML =  j 
-						const i = document.createElement("textarea")
-						if(Array.isArray(vrm.meta[j])) {
-							const a = [] 
-							t.innerHTML += `(${vrm.meta[j].length})`
-							for(let i=0;i<vrm.meta[j].length;i++) {
-								a.push(`<${i}>\n${JSON.stringify(vrm.meta[j][i],null,"    ")}`)
-							}
-							i.value = a.join("\n")
-						} else 
-							i.value = JSON.stringify(vrm.meta[j],null,"    ")
-						$('jlist').appendChild(t)
-						
-						$('jlist').appendChild(i)
-					}
-					const imgs = vrm.getimg()
-					for(let im of imgs) {
-						const img = document.createElement("img");
-						img.src= im
-						$('imgs').appendChild(img)
-					}
+	$('go').addEventListener("click", (ev)=>{
+		if( $('url').value!="") {
+			var req = new XMLHttpRequest();
+			req.open("get",$('url').value,true) ;
+			req.responseType = "arraybuffer" ;
+			req.onload = () => {
+				if(req.status==200) {
+					load(req.response) ;
+				} else {
+					alert("file cannot load") ;					
 				}
 			}
-			reader.readAsArrayBuffer(ev.target.files[0]);
+			req.send() ;
+		} else if( $('f').files.length>0) {
+			const reader = new FileReader()
+			reader.onload = (ev) =>{
+				load(reader.result)
+			}
+			reader.readAsArrayBuffer($('f').files[0]);
+		}
 	})
 })
+function load(data) {
+	const vrm = new VRM() 
+	if(vrm.parse(data)) {
+		show(vrm)
+	} else {
+		alert("This file does not looks like VRM nor glTF2.0")
+	}	
+}
+function show(vrm) {
+	$('imgs').innerHTML = "" 
+	$('jlist').innerHTML = ""
+	// make node tree
+	const nodes = [] 
+	for(let n=0;n<vrm.meta.scenes[0].nodes.length;n++) {
+		const ni = vrm.meta.scenes[0].nodes[n]
+		nodes.push(vrm.getnode(ni))  
+	}
+	console.log(nodes) 
+	$('jlist').appendChild($c("h2",{innerHTML:"nodetree"}))
+	$('jlist').appendChild($c("textarea",{value:JSON.stringify(nodes,null,"    ")}))
+
+	for(let j in vrm.meta) {
+		const t = $c("h2",{innerHTML:j})
+		const i = $c("textarea")
+		if(Array.isArray(vrm.meta[j])) {
+			const a = [] 
+			t.innerHTML += `(${vrm.meta[j].length})`
+			for(let i=0;i<vrm.meta[j].length;i++) {
+				a.push(`<${i}>\n${JSON.stringify(vrm.meta[j][i],null,"    ")}`)
+			}
+			i.value = a.join("\n")
+		} else 
+			i.value = JSON.stringify(vrm.meta[j],null,"    ")
+		$('jlist').appendChild(t)
+		$('jlist').appendChild(i)
+	}
+	// get images
+	const imgs = vrm.getimg()
+	for(let im of imgs) {
+		const img = $c("img",{src:URL.createObjectURL(im)});
+		$('imgs').appendChild(img)
+	}
+
+	
+}
 const VRM = function() {
 	this.bsize = 0 
 	this.meta = null
-} 
+}
 VRM.prototype.parse = function(abuf){
-	function u4(ofs) {return buf[ofs]+256*(buf[ofs+1]+256*(buf[ofs+2]+256*buf[ofs+3])) }
+	function u4(ofs) {return new DataView( buf.buffer,ofs,4).getUint32(0,true) }
 	const buf = new Uint8Array(abuf)
 	if(buf[0]!=0x67||buf[1]!=0x6c||buf[2]!=0x54||buf[3]!=0x46||buf[4]!=2) return null
 	this.bsize = u4(8)
@@ -80,10 +120,21 @@ VRM.prototype.getimg = function(){
 	for(let im of this.meta.images) {
 		const buf = this.meta.bufferViews[im.bufferView] 
 		const data = this.bin.slice(buf.byteOffset,buf.byteOffset+buf.byteLength)
-		const uri = "data:"+im.mimeType+";base64,"+btoa(Array.from(data,e=>String.fromCharCode(e)).join(""))
-		imgs.push(uri)
+//		const uri = "data:"+im.mimeType+";base64,"+btoa(Array.from(data,e=>String.fromCharCode(e)).join(""))
+		imgs.push(new Blob([data],{type:im.mimeType}))
 	}
 	return imgs 
+}
+VRM.prototype.getnode = function(ni){
+	const n = this.meta.nodes[ni] 
+	const nl = {node:ni,name:n.name,mesh:n.mesh,skin:n.skin}
+	if(n.children) {
+		nl.children = [] 
+		for(let i=0;i<n.children.length;i++) {
+			nl.children[i] = this.getnode(n.children[i])
+		}
+	}
+	return nl 
 }
 </script>
 <link rel="stylesheet" type="text/css" href="">
@@ -110,7 +161,7 @@ div.json textarea {
 </style>
 </head>
 <body>
-<input id=f type=file accept=".vrm,.glb">
+URL:<input id=url type=text> OR <input id=f type=file accept=".vrm,.glb"><button id=go>LOAD</button>
 <div class=cont>
 <div id=jlist class=json>
 
