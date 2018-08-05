@@ -16,35 +16,43 @@ function $c(elem,attr) {
 	return e
 }
 document.addEventListener("DOMContentLoaded",function() {
+	let src = location.search.substr(1) 
+	if(src!="") {
+		$('url').value = src
+		load()	
+	}
 	$('go').addEventListener("click", (ev)=>{
-		if( $('url').value!="") {
-			var req = new XMLHttpRequest();
-			req.open("get",$('url').value,true) ;
-			req.responseType = "arraybuffer" ;
-			req.onload = () => {
-				if(req.status==200) {
-					load(req.response) ;
-				} else {
-					alert("file cannot load") ;					
-				}
-			}
-			req.send() ;
-		} else if( $('f').files.length>0) {
-			const reader = new FileReader()
-			reader.onload = (ev) =>{
-				load(reader.result)
-			}
-			reader.readAsArrayBuffer($('f').files[0]);
-		}
+		load()
 	})
 })
-function load(data) {
+function load() {
 	const vrm = new VRM() 
-	if(vrm.parse(data)) {
-		show(vrm)
-	} else {
-		alert("This file does not looks like VRM nor glTF2.0")
-	}	
+	function parse(data) {
+		if(vrm.parse(data)) {
+			show(vrm)
+		} else {
+			alert("This file does not looks like VRM nor glTF2.0")
+		}
+	}
+	if( $('url').value!="") {
+		var req = new XMLHttpRequest();
+		req.open("get",$('url').value,true) ;
+		req.responseType = "arraybuffer" ;
+		req.onload = () => {
+			if(req.status==200) {
+				parse(req.response) ;
+			} else {
+				alert("file cannot load") ;					
+			}
+		}
+		req.send() ;
+	} else if( $('f').files.length>0) {
+		const reader = new FileReader()
+		reader.onload = (ev) =>{
+			parse(reader.result)
+		}
+		reader.readAsArrayBuffer($('f').files[0]);
+	}
 }
 function show(vrm) {
 	$('imgs').innerHTML = "" 
@@ -76,8 +84,8 @@ function show(vrm) {
 	}
 	// get images
 	const imgs = vrm.getimg()
-	for(let im of imgs) {
-		const img = $c("img",{src:URL.createObjectURL(im)});
+	for(let i=0;i<imgs.length;i++) {
+		const img = $c("img",{src:URL.createObjectURL(imgs[i]),title:i});
 		$('imgs').appendChild(img)
 	}
 	let p = vrm.meta.meshes[0].primitives[0]
